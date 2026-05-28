@@ -28,20 +28,16 @@ const endpoint: ModelEndpoint = {
     },
     {
       name: "video",
-      type: "array",
+      type: "string",
       description:
-        'Reference video (JSON array, 1 video). Each: {"video_url":"...","refer_type":"feature","keep_original_sound":"no"}',
+        "Reference video URL (mp4/mov, 3-10s, 720-2160px, ≤200MB). aspect_ratio must be set explicitly when no first_frame is given (runtime requirement).",
       required: true,
     },
     {
-      name: "first_frame",
-      type: "string",
-      description: "First-frame reference image (URL/Base64)",
-    },
-    {
-      name: "last_frame",
-      type: "string",
-      description: "Last-frame reference image (requires first_frame)",
+      name: "keep_audio",
+      type: "boolean",
+      description: "Whether to keep the original audio from the reference video",
+      default: false,
     },
     {
       name: "images",
