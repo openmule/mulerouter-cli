@@ -1,6 +1,6 @@
 {
   "name": "mulerouter",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "CLI for MuleRouter/MuleRun multimodal AI APIs — generate images, videos, speech, and music",
   "type": "module",
   "license": "MIT",

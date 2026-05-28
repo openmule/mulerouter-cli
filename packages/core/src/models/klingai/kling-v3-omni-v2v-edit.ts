@@ -28,10 +28,15 @@ const endpoint: ModelEndpoint = {
     },
     {
       name: "video",
-      type: "array",
-      description:
-        'Video to edit (JSON array, 1 video). Each: {"video_url":"...","refer_type":"base","keep_original_sound":"no"}',
+      type: "string",
+      description: "Video URL to edit (mp4/mov, 3-10s, 720-2160px, ≤200MB)",
       required: true,
+    },
+    {
+      name: "keep_audio",
+      type: "boolean",
+      description: "Whether to keep the original audio from the video",
+      default: false,
     },
     {
       name: "images",
