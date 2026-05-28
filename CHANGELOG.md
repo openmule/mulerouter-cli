@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-05-28
+
+### Fixed
+- `klingai/kling-v3-omni-v2v` and `kling-v3-omni-v2v-edit`: `video` parameter is a single URL string, not a JSON array of objects. Removed nonexistent `first_frame` / `last_frame` parameters on v2v (upstream `additionalProperties: false` rejects them) and added the missing `keep_audio` boolean on both. Verified end-to-end against `api.mulerouter.ai`; full regression now 33/34 (vs. 25/34 prior).
+
 ## [0.4.2] - 2026-05-27
 
 ### Fixed
