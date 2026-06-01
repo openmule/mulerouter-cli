@@ -191,7 +191,9 @@ function formatResult(result: TaskResult, json: boolean, apiPath?: string): stri
     : result.timedOut
       ? pc.yellow
       : pc.red;
-  lines.push(`Status:  ${statusColor(result.status)}${result.timedOut ? pc.yellow(" (timeout)") : ""}`);
+  lines.push(
+    `Status:  ${statusColor(result.status)}${result.timedOut ? pc.yellow(" (timeout)") : ""}`,
+  );
 
   if (result.error) {
     lines.push(`Error:   ${result.timedOut ? pc.yellow(result.error) : pc.red(result.error)}`);
