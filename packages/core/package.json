@@ -1,6 +1,6 @@
 {
   "name": "@mulerouter/core",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Core library for MuleRouter/MuleRun multimodal AI APIs",
   "type": "module",
   "license": "MIT",

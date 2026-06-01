@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-01
+
+### Fixed
+- `status` command now surfaces video/audio result URLs. `parseTaskResponse` falls back across `images`/`videos`/`audios` when the caller has no endpoint metadata, instead of dropping results because the default `resultKey` was `images`.
+- `run` no longer reports a long-running task as `failed` when its own poll loop times out. Timeouts now return `status: "processing"` plus `timedOut: true`, exit with code `2`, and print a `Resume:` line with the exact `mulerouter status … --wait` command so the user (or an agent) can continue polling.
+- `run --no-wait` errors out when the API response lacks `task_info.id` instead of printing `Task ID: unknown` and exiting `0`. An unidentifiable task is unusable for status polling.
+- `processImageParams` and the missing-file warning in `run` now also cover video (`video`, `video_url`, `mask_video_url`, `reference_video[_url]`) and audio (`audio_url`, `reference_audio[_url]`) parameters. Local video/audio files passed to models like `klingai/kling-v3-omni-v2v` are now base64-encoded instead of shipping the literal path string.
+- Local files that exist but are rejected by extension / sensitive-dir / size rules now produce an explicit warning. Previously the path was silently treated as a URL.
+- `--no-KEY=VALUE` syntax now strips the `no-` prefix and inverts the value. Previously it was stored as `{"no-key": "value"}` under the wrong key.
+
+### Changed
+- Default `--max-wait` raised from 900s to 1800s on both `run` and `status`. 15 minutes was too short for video models that legitimately take 20–30 minutes.
+- `run` and `status` now exit with code `2` on polling timeout to distinguish "still processing server-side" from "failed".
+
+### Added
+- `status --result-key <key>` flag for overriding the response field used to extract result URLs. By default the key is looked up from the registry by `apiPath`.
+- New core exports: `isVideoParam`, `isAudioParam`, `isMediaParam`, `mediaKindForParam`, `validateMediaPath`.
+
 ## [0.4.3] - 2026-05-28
 
 ### Fixed
