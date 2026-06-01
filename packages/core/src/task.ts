@@ -15,6 +15,25 @@ export function isSuccessStatus(status: TaskStatus): boolean {
   return SUCCESS_STATUSES.has(status);
 }
 
+const FALLBACK_RESULT_KEYS = ["images", "videos", "audios", "image", "video", "audio"];
+
+function extractResults(
+  responseData: Record<string, unknown>,
+  preferredKey: string,
+): { key: string; results: string[] | undefined } {
+  const candidates = [preferredKey, ...FALLBACK_RESULT_KEYS.filter((k) => k !== preferredKey)];
+  for (const key of candidates) {
+    const value = responseData[key];
+    if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+      return { key, results: value as string[] };
+    }
+    if (typeof value === "string") {
+      return { key, results: [value] };
+    }
+  }
+  return { key: preferredKey, results: undefined };
+}
+
 /** Parse task response data into a TaskResult. */
 export function parseTaskResponse(
   responseData: Record<string, unknown>,
@@ -48,11 +67,18 @@ export function parseTaskResponse(
     }
   }
 
-  const results = isSuccessStatus(status)
-    ? (responseData[resultKey] as string[] | undefined)
-    : undefined;
+  const extracted = isSuccessStatus(status)
+    ? extractResults(responseData, resultKey)
+    : { key: resultKey, results: undefined };
 
-  return { taskId, status, data: responseData, error, resultKey, results };
+  return {
+    taskId,
+    status,
+    data: responseData,
+    error,
+    resultKey: extracted.key,
+    results: extracted.results,
+  };
 }
 
 /**
@@ -87,9 +113,11 @@ export async function pollTask(options: {
     if (elapsed > maxWait) {
       return {
         taskId,
-        status: "failed",
+        status: "processing",
         data: {},
-        error: `Polling timeout after ${maxWait / 1000}s`,
+        error: `Polling timeout after ${maxWait / 1000}s — task may still be processing server-side.`,
+        timedOut: true,
+        apiPath: taskPath,
       };
     }
 
@@ -117,7 +145,7 @@ export async function pollTask(options: {
     }
 
     if (isTerminalStatus(result.status)) {
-      return result;
+      return { ...result, apiPath: taskPath };
     }
 
     await sleep(interval);

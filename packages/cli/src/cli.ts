@@ -76,7 +76,7 @@ Use 'mulerouter params <endpoint>' to see available parameters.`,
   .option("--site <site>", "override site (mulerouter, mulerun)")
   .option("--no-wait", "create task without waiting for completion")
   .option("--poll-interval <seconds>", "polling interval in seconds", "20")
-  .option("--max-wait <seconds>", "maximum wait time in seconds", "900")
+  .option("--max-wait <seconds>", "maximum wait time in seconds", "1800")
   .option("--quiet", "suppress progress output")
   .option("--json", "output as JSON")
   .option("--extra <key=value...>", "extra parameters (KEY=VALUE)", collect, [])
@@ -110,7 +110,8 @@ The api-path is shown in the --no-wait output. Examples:
   .option("--site <site>", "override site (mulerouter, mulerun)")
   .option("--wait", "poll until task completes")
   .option("--poll-interval <seconds>", "polling interval in seconds", "20")
-  .option("--max-wait <seconds>", "maximum wait time in seconds", "900")
+  .option("--max-wait <seconds>", "maximum wait time in seconds", "1800")
+  .option("--result-key <key>", "response field containing result URLs (auto-detected by default)")
   .option("--quiet", "suppress progress output")
   .option("--json", "output as JSON")
   .action(async (apiPath, taskId, options) => {

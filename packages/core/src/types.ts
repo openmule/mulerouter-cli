@@ -65,6 +65,10 @@ export interface TaskResult {
   error?: string;
   resultKey?: string;
   results?: string[];
+  /** True when polling was aborted because maxWait elapsed; task may still be processing server-side. */
+  timedOut?: boolean;
+  /** API path used to poll the task — useful for resuming with `status` after a timeout. */
+  apiPath?: string;
 }
 
 /** Configuration for the API client. */

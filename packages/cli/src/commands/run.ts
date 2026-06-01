@@ -149,12 +149,14 @@ function validateRequired(endpoint: ModelEndpoint, body: Record<string, unknown>
 }
 
 /** Format task result for output. */
-function formatResult(result: TaskResult, json: boolean): string {
+function formatResult(result: TaskResult, json: boolean, apiPath?: string): string {
   if (json) {
     return JSON.stringify(
       {
         task_id: result.taskId,
         status: result.status,
+        ...(result.timedOut ? { timed_out: true } : {}),
+        ...(apiPath ? { api_path: apiPath } : {}),
         ...(result.error ? { error: result.error } : {}),
         ...(result.results ? { [result.resultKey ?? "results"]: result.results } : {}),
         data: result.data,
@@ -166,12 +168,15 @@ function formatResult(result: TaskResult, json: boolean): string {
 
   const lines: string[] = [];
   lines.push(`Task ID: ${result.taskId}`);
-  lines.push(
-    `Status:  ${isSuccessStatus(result.status) ? pc.green(result.status) : pc.red(result.status)}`,
-  );
+  const statusColor = isSuccessStatus(result.status)
+    ? pc.green
+    : result.timedOut
+      ? pc.yellow
+      : pc.red;
+  lines.push(`Status:  ${statusColor(result.status)}${result.timedOut ? pc.yellow(" (timeout)") : ""}`);
 
   if (result.error) {
-    lines.push(`Error:   ${pc.red(result.error)}`);
+    lines.push(`Error:   ${result.timedOut ? pc.yellow(result.error) : pc.red(result.error)}`);
   }
 
   if (result.results?.length) {
@@ -180,6 +185,12 @@ function formatResult(result: TaskResult, json: boolean): string {
     for (const url of result.results) {
       lines.push(`  ${url}`);
     }
+  }
+
+  if (result.timedOut && apiPath && result.taskId) {
+    lines.push("");
+    lines.push(pc.bold("Resume:"));
+    lines.push(`  mulerouter status ${apiPath} ${result.taskId} --wait`);
   }
 
   return lines.join("\n");
@@ -270,7 +281,7 @@ export async function executeRun(identifier: string, options: RunOptions): Promi
     }
 
     const pollInterval = parsePositiveInt(options.pollInterval, 20, "--poll-interval") * 1000;
-    const maxWait = parsePositiveInt(options.maxWait, 900, "--max-wait") * 1000;
+    const maxWait = parsePositiveInt(options.maxWait, 1800, "--max-wait") * 1000;
 
     const result = await createAndPollTask({
       client,
@@ -282,9 +293,12 @@ export async function executeRun(identifier: string, options: RunOptions): Promi
       verbose,
     });
 
-    console.log(formatResult(result, !!options.json));
+    console.log(formatResult(result, !!options.json, endpoint.apiPath));
 
-    if (!isSuccessStatus(result.status)) {
+    if (result.timedOut) {
+      // Task may still be processing — surface as non-fatal so the user can resume.
+      process.exitCode = 2;
+    } else if (!isSuccessStatus(result.status)) {
       process.exitCode = 1;
     }
   } catch (error) {

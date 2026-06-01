@@ -132,8 +132,10 @@ describe("pollTask", () => {
       verbose: false,
     });
 
-    expect(result.status).toBe("failed");
+    expect(result.status).toBe("processing");
+    expect(result.timedOut).toBe(true);
     expect(result.error).toContain("Polling timeout");
+    expect(result.apiPath).toBe("/test/path");
   });
 
   it("should call onStatus callback when provided", async () => {

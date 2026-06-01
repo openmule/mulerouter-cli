@@ -6,6 +6,7 @@ import {
   loadConfig,
   parseTaskResponse,
   pollTask,
+  registry,
 } from "@mulerouter/core";
 import pc from "picocolors";
 import { parsePositiveInt } from "../utils.js";
@@ -19,6 +20,15 @@ interface StatusOptions {
   maxWait?: string;
   quiet?: boolean;
   json?: boolean;
+  resultKey?: string;
+}
+
+/** Look up an endpoint's resultKey by its registered apiPath. */
+function resultKeyForApiPath(apiPath: string): string | undefined {
+  for (const ep of registry.listAll()) {
+    if (ep.apiPath === apiPath) return ep.resultKey;
+  }
+  return undefined;
 }
 
 function formatStatus(
@@ -27,12 +37,15 @@ function formatStatus(
   error: string | undefined,
   results: string[] | undefined,
   json: boolean,
+  opts: { timedOut?: boolean; apiPath?: string } = {},
 ): string {
   if (json) {
     return JSON.stringify(
       {
         task_id: taskId,
         status,
+        ...(opts.timedOut ? { timed_out: true } : {}),
+        ...(opts.apiPath ? { api_path: opts.apiPath } : {}),
         ...(error ? { error } : {}),
         ...(results?.length ? { results } : {}),
       },
@@ -45,17 +58,24 @@ function formatStatus(
   lines.push(`Task ID: ${taskId}`);
   const color = isSuccessStatus(status as TaskStatus)
     ? pc.green
-    : isTerminalStatus(status as TaskStatus)
-      ? pc.red
-      : pc.yellow;
-  lines.push(`Status:  ${color(status)}`);
-  if (error) lines.push(`Error:   ${pc.red(error)}`);
+    : opts.timedOut
+      ? pc.yellow
+      : isTerminalStatus(status as TaskStatus)
+        ? pc.red
+        : pc.yellow;
+  lines.push(`Status:  ${color(status)}${opts.timedOut ? pc.yellow(" (timeout)") : ""}`);
+  if (error) lines.push(`Error:   ${opts.timedOut ? pc.yellow(error) : pc.red(error)}`);
   if (results?.length) {
     lines.push("");
     lines.push(pc.bold("Results:"));
     for (const url of results) {
       lines.push(`  ${url}`);
     }
+  }
+  if (opts.timedOut && opts.apiPath && taskId) {
+    lines.push("");
+    lines.push(pc.bold("Resume:"));
+    lines.push(`  mulerouter status ${opts.apiPath} ${taskId} --wait`);
   }
   return lines.join("\n");
 }
@@ -80,26 +100,33 @@ export async function executeStatus(
 
   const client = new APIClient(config);
   const verbose = !options.quiet;
+  const resultKey = options.resultKey ?? resultKeyForApiPath(endpoint) ?? "images";
 
   try {
     if (options.wait) {
       const pollInterval = parsePositiveInt(options.pollInterval, 20, "--poll-interval") * 1000;
-      const maxWait = parsePositiveInt(options.maxWait, 900, "--max-wait") * 1000;
+      const maxWait = parsePositiveInt(options.maxWait, 1800, "--max-wait") * 1000;
 
       const result = await pollTask({
         client,
         taskPath: endpoint,
         taskId,
+        resultKey,
         interval: pollInterval,
         maxWait,
         verbose,
       });
 
       console.log(
-        formatStatus(result.taskId, result.status, result.error, result.results, !!options.json),
+        formatStatus(result.taskId, result.status, result.error, result.results, !!options.json, {
+          timedOut: result.timedOut,
+          apiPath: endpoint,
+        }),
       );
 
-      if (!isSuccessStatus(result.status)) {
+      if (result.timedOut) {
+        process.exitCode = 2;
+      } else if (!isSuccessStatus(result.status)) {
         process.exitCode = 1;
       }
     } else {
@@ -112,9 +139,11 @@ export async function executeStatus(
         return;
       }
 
-      const result = parseTaskResponse(response.data ?? {});
+      const result = parseTaskResponse(response.data ?? {}, resultKey);
       console.log(
-        formatStatus(result.taskId, result.status, result.error, result.results, !!options.json),
+        formatStatus(result.taskId, result.status, result.error, result.results, !!options.json, {
+          apiPath: endpoint,
+        }),
       );
 
       if (result.status === "failed") {
