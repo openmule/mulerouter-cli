@@ -1,13 +1,15 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ModelEndpoint, TaskResult } from "@mulerouter/core";
 import {
   APIClient,
   createAndPollTask,
-  isImageParam,
   isSuccessStatus,
   loadConfig,
+  mediaKindForParam,
   processImageParams,
   toCliFlag,
+  validateMediaPath,
 } from "@mulerouter/core";
 import pc from "picocolors";
 import { parsePositiveInt } from "../utils.js";
@@ -45,16 +47,32 @@ function parseExtras(extras: string[]): Record<string, unknown> {
   return result;
 }
 
-/** Warn when image parameters contain local paths that don't exist. */
-function warnMissingImageFiles(body: Record<string, unknown>): void {
+/** Warn when media parameters reference local files that don't exist
+ *  or have unsupported extensions. Catches typos and silent fall-throughs
+ *  where a "URL" is actually a path the server cannot fetch. */
+function warnMissingMediaFiles(body: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(body)) {
-    if (!isImageParam(key)) continue;
+    const kind = mediaKindForParam(key);
+    if (kind === undefined) continue;
     const paths = Array.isArray(value) ? value : [value];
     for (const p of paths) {
       if (typeof p !== "string") continue;
       if (p.startsWith("http://") || p.startsWith("https://") || p.startsWith("data:")) continue;
-      if (!existsSync(p)) {
-        process.stderr.write(pc.yellow(`Warning: File not found for --${toCliFlag(key)}: ${p}\n`));
+      const flag = toCliFlag(key);
+      const resolved = resolve(p);
+      const stat = existsSync(resolved) ? statSync(resolved, { throwIfNoEntry: false }) : undefined;
+      if (!stat?.isFile()) {
+        process.stderr.write(pc.yellow(`Warning: File not found for --${flag}: ${p}\n`));
+        continue;
+      }
+      // File exists — make sure the validator accepts it. If it doesn't (bad
+      // extension, sensitive dir, oversized), the value would otherwise pass
+      // through as a literal path string and the API would reject it.
+      try {
+        validateMediaPath(p, kind);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(pc.yellow(`Warning: --${flag} ${msg}\n`));
       }
     }
   }
@@ -234,7 +252,7 @@ export async function executeRun(identifier: string, options: RunOptions): Promi
     let body = endpoint.buildRequestBody ? endpoint.buildRequestBody(rawBody) : rawBody;
 
     // Warn about local file paths that don't exist for image params
-    warnMissingImageFiles(rawBody);
+    warnMissingMediaFiles(rawBody);
 
     // Convert local image paths to base64
     body = processImageParams(body);
@@ -247,35 +265,31 @@ export async function executeRun(identifier: string, options: RunOptions): Promi
       if (!response.success) {
         throw new Error(response.error ?? "Request failed");
       }
+      const rawTaskInfo = response.data?.task_info;
+      const taskInfo =
+        typeof rawTaskInfo === "object" && rawTaskInfo !== null
+          ? (rawTaskInfo as Record<string, unknown>)
+          : {};
+      const taskId = taskInfo.id != null ? String(taskInfo.id) : "";
+      if (!taskId) {
+        throw new Error(
+          `Task creation succeeded but the response did not include a task ID. Raw response: ${JSON.stringify(response.data ?? {})}`,
+        );
+      }
       if (options.json) {
         const output = {
           ...(response.data ?? {}),
           api_path: endpoint.apiPath,
+          task_id: taskId,
         };
-        const taskInfo = response.data?.task_info;
-        if (typeof taskInfo === "object" && taskInfo !== null) {
-          const tid = (taskInfo as Record<string, unknown>).id;
-          if (tid != null) {
-            (output as Record<string, unknown>).task_id = String(tid);
-          }
-        }
         console.log(JSON.stringify(output, null, 2));
       } else {
-        const data = response.data ?? {};
-        const taskInfo =
-          typeof data.task_info === "object" && data.task_info !== null
-            ? (data.task_info as Record<string, unknown>)
-            : {};
-        console.log(`Task ID:  ${taskInfo.id ?? "unknown"}`);
+        console.log(`Task ID:  ${taskId}`);
         console.log(`API Path: ${endpoint.apiPath}`);
         console.log("Status:   created (not waiting for completion)");
         console.log("");
-        console.log(
-          `Check status: mulerouter status ${endpoint.apiPath} ${taskInfo.id ?? "<task-id>"}`,
-        );
-        console.log(
-          `Wait:         mulerouter status ${endpoint.apiPath} ${taskInfo.id ?? "<task-id>"} --wait`,
-        );
+        console.log(`Check status: mulerouter status ${endpoint.apiPath} ${taskId}`);
+        console.log(`Wait:         mulerouter status ${endpoint.apiPath} ${taskId} --wait`);
       }
       return;
     }

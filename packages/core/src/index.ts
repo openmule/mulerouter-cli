@@ -8,7 +8,16 @@ export {
   loadEnvFile,
   resetEnvFileCache,
 } from "./config.js";
-export { isImageParam, processImageParams, validateImagePath } from "./image.js";
+export {
+  isAudioParam,
+  isImageParam,
+  isMediaParam,
+  isVideoParam,
+  mediaKindForParam,
+  processImageParams,
+  validateImagePath,
+  validateMediaPath,
+} from "./image.js";
 export { ModelRegistry, registerEndpoint, registry } from "./registry.js";
 export {
   createAndPollTask,

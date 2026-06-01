@@ -141,29 +141,42 @@ function parseUnknownOptions(args: string[]): Record<string, unknown> {
       const raw = arg.slice(2);
       const eqIndex = raw.indexOf("=");
 
+      let key: string;
+      let value: unknown;
+      let consumed = 1;
+
       if (eqIndex !== -1) {
-        // --key=value syntax
-        const key = raw.slice(0, eqIndex);
-        result[key] = raw.slice(eqIndex + 1);
-        i++;
-        continue;
+        key = raw.slice(0, eqIndex);
+        value = raw.slice(eqIndex + 1);
+      } else {
+        key = raw;
+        const nextArg = args[i + 1];
+        if (nextArg === undefined || nextArg.startsWith("--")) {
+          value = true;
+        } else {
+          value = nextArg;
+          consumed = 2;
+        }
       }
 
-      const key = raw;
+      // Normalize --no-KEY: strip prefix and invert any explicit value.
+      // --no-foo            -> foo=false
+      // --no-foo=true|1     -> foo=false
+      // --no-foo=false|0    -> foo=true
+      // --no-foo <value>    -> foo=false (Commander-style --no- flags don't take values)
       if (key.startsWith("no-")) {
         const actualKey = key.slice(3);
-        result[actualKey] = false;
-        i++;
-        continue;
-      }
-      const nextArg = args[i + 1];
-      if (nextArg === undefined || nextArg.startsWith("--")) {
-        result[key] = true;
-        i++;
+        if (typeof value === "string") {
+          const lowered = value.toLowerCase();
+          value = !(lowered === "true" || lowered === "1");
+        } else {
+          value = false;
+        }
+        result[actualKey] = value;
       } else {
-        result[key] = nextArg;
-        i += 2;
+        result[key] = value;
       }
+      i += consumed;
     } else {
       i++;
     }

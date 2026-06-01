@@ -96,7 +96,7 @@ describe("image", () => {
       const tmpFile = join(tmpdir(), "test-huge.png");
       const buf = Buffer.alloc(21 * 1024 * 1024);
       writeFileSync(tmpFile, buf);
-      expect(() => validateImagePath(tmpFile)).toThrow("exceeding the 20MB limit");
+      expect(() => validateImagePath(tmpFile)).toThrow("exceeding the 20MB image limit");
       unlinkSync(tmpFile);
     });
   });
